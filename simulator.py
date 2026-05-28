@@ -22,6 +22,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 from cards_db import CARDS
 
@@ -679,45 +680,48 @@ def report(games: list[Game], n_turns: int, life: int, out_dir: Path):
             if name == "Isshin, Two Heavens as One":
                 isshin_turns.append(t); break
 
-    # Text report
-    print("=" * 60)
-    print(f"Goldfish report — {len(games)} sims, {n_turns} turns, target life {life}")
-    print("=" * 60)
-    print(f"Avg lands in opening 7 : {avg_open_lands:.2f}")
-    print(f"  >=5 lands (flood)    : {flood_rate*100:.1f}%")
-    print(f"  <=1 land (screw)     : {screw_rate*100:.1f}%")
+    # Text report (collected so we can both print and embed in PDF)
+    lines: list[str] = []
+    lines.append("=" * 60)
+    lines.append(f"Goldfish report - {len(games)} sims, {n_turns} turns, target life {life}")
+    lines.append("=" * 60)
+    lines.append(f"Avg lands in opening 7 : {avg_open_lands:.2f}")
+    lines.append(f"  >=5 lands (flood)    : {flood_rate*100:.1f}%")
+    lines.append(f"  <=1 land (screw)     : {screw_rate*100:.1f}%")
     if isshin_turns:
-        print(f"Isshin landed by T{n_turns}: {len(isshin_turns)/len(games)*100:.1f}% "
-              f"(avg turn {np.mean(isshin_turns):.2f})")
-    print(f"Lethal by T{n_turns}    : {win_rate_by_t10*100:.1f}%")
+        lines.append(f"Isshin landed by T{n_turns}: {len(isshin_turns)/len(games)*100:.1f}% "
+                     f"(avg turn {np.mean(isshin_turns):.2f})")
+    lines.append(f"Lethal by T{n_turns}    : {win_rate_by_t10*100:.1f}%")
     if win_turns:
-        print(f"Avg kill turn          : {avg_win:.2f} (median {med_win:.1f})")
-    print(f"Peak-damage turn       : T{peak_turn} (median {med_per_turn[peak_turn-1]:.1f} dmg) "
-          f"| mean peak T{peak_turn_mean}")
-    print()
-    print("Turn |  median |   avg  |  p25 |  p75 | median cum")
-    print("-" * 56)
+        lines.append(f"Avg kill turn          : {avg_win:.2f} (median {med_win:.1f})")
+    lines.append(f"Peak-damage turn       : T{peak_turn} "
+                 f"(median {med_per_turn[peak_turn-1]:.1f} dmg) | mean peak T{peak_turn_mean}")
+    lines.append("")
+    lines.append("Turn |  median |   avg  |  p25 |  p75 | median cum")
+    lines.append("-" * 56)
     for t in range(n_turns):
-        print(f" T{t+1:>2} | {med_per_turn[t]:>7.1f} | {avg_per_turn[t]:>6.1f} | "
-              f"{p25[t]:>4.0f} | {p75[t]:>4.0f} | {med_cum[t]:>8.1f}")
+        lines.append(f" T{t+1:>2} | {med_per_turn[t]:>7.1f} | {avg_per_turn[t]:>6.1f} | "
+                     f"{p25[t]:>4.0f} | {p75[t]:>4.0f} | {med_cum[t]:>8.1f}")
+    for line in lines:
+        print(line)
 
     # ----- Plots -----
     turns = np.arange(1, n_turns + 1)
+    figures: list[tuple[str, "plt.Figure"]] = []
 
     # 1) damage per turn (median + IQR; mean overlaid)
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.plot(turns, med_per_turn, marker="o", color="#b9261b", label="median dmg")
     ax.plot(turns, avg_per_turn, marker="x", linestyle=":", color="#444",
             label="mean dmg")
-    ax.fill_between(turns, p25, p75, alpha=0.2, color="#b9261b", label="p25–p75")
+    ax.fill_between(turns, p25, p75, alpha=0.2, color="#b9261b", label="p25-p75")
     ax.axvline(peak_turn, ls="--", color="grey", alpha=0.6,
                label=f"peak T{peak_turn}")
     ax.set_xlabel("Turn"); ax.set_ylabel("Damage dealt")
     ax.set_title("Damage per turn (median, mean, IQR)")
     ax.legend(); ax.grid(alpha=0.3)
     fig.tight_layout()
-    fig.savefig(out_dir / "damage_per_turn.png", dpi=140)
-    plt.close(fig)
+    figures.append(("damage_per_turn", fig))
 
     # 2) cumulative damage
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -730,8 +734,7 @@ def report(games: list[Game], n_turns: int, life: int, out_dir: Path):
     ax.set_title("Cumulative damage")
     ax.legend(); ax.grid(alpha=0.3)
     fig.tight_layout()
-    fig.savefig(out_dir / "cumulative_damage.png", dpi=140)
-    plt.close(fig)
+    figures.append(("cumulative_damage", fig))
 
     # 3) win turn distribution
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -744,8 +747,7 @@ def report(games: list[Game], n_turns: int, life: int, out_dir: Path):
     ax.set_xticks(range(1, n_turns + 1))
     ax.grid(alpha=0.3, axis="y")
     fig.tight_layout()
-    fig.savefig(out_dir / "kill_turn_distribution.png", dpi=140)
-    plt.close(fig)
+    figures.append(("kill_turn_distribution", fig))
 
     # 4) opening-hand land distribution
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -756,15 +758,39 @@ def report(games: list[Game], n_turns: int, life: int, out_dir: Path):
     ax.set_xticks(range(0, 8))
     ax.grid(alpha=0.3, axis="y")
     fig.tight_layout()
-    fig.savefig(out_dir / "opening_lands.png", dpi=140)
-    plt.close(fig)
+    figures.append(("opening_lands", fig))
+
+    # Save individual PNGs
+    for label, fig in figures:
+        fig.savefig(out_dir / f"{label}.png", dpi=140)
+
+    # Build text-report cover page (rendered with monospaced font onto a figure)
+    cover = plt.figure(figsize=(8.5, 11))
+    cover.suptitle("MTG Goldfish Simulation Report", fontsize=16, y=0.97)
+    cover.text(0.5, 0.93, f"{len(games)} simulations | {n_turns} turns | target life {life}",
+               ha="center", fontsize=10, color="#555")
+    cover.text(0.05, 0.88, "\n".join(lines),
+               family="monospace", fontsize=9, va="top", ha="left")
+    cover.text(0.5, 0.03,
+               "Heuristic simulation: no opponent interaction (no removal/blockers). "
+               "Numbers approximate.",
+               ha="center", fontsize=8, color="#777", style="italic")
+
+    # Combine into a single PDF
+    pdf_path = out_dir / "report.pdf"
+    with PdfPages(pdf_path) as pdf:
+        pdf.savefig(cover)
+        for _, fig in figures:
+            pdf.savefig(fig)
+    plt.close(cover)
+    for _, fig in figures:
+        plt.close(fig)
 
     print()
-    print(f"Charts saved in: {out_dir.resolve()}")
-    print("  - damage_per_turn.png")
-    print("  - cumulative_damage.png")
-    print("  - kill_turn_distribution.png")
-    print("  - opening_lands.png")
+    print(f"Outputs in: {out_dir.resolve()}")
+    print(f"  - report.pdf (combined)")
+    for label, _ in figures:
+        print(f"  - {label}.png")
 
 
 def main():
