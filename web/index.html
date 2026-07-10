@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTG Deck Analyst — Análise visual de deck</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <div>
+        <h1>MTG Deck Analyst</h1>
+        <p class="tagline">Cole sua lista → veja combos, sinergias e sugestões, tudo visual</p>
+      </div>
+    </div>
+    <button id="theme-toggle" class="ghost-btn" title="Alternar tema">🌗 Tema</button>
+  </div>
+</header>
+
+<main class="page">
+  <!-- ===================== ENTRADA ===================== -->
+  <section class="panel" id="input-panel">
+    <div class="input-grid">
+      <div class="input-col">
+        <label for="decklist" class="field-label">Lista do deck
+          <span class="hint">formatos aceitos: "1 Nome da Carta", "1x Nome (SET) 123", seções COMMANDER / SIDEBOARD</span>
+        </label>
+        <textarea id="decklist" spellcheck="false"
+          placeholder="COMMANDER:&#10;1 Isshin, Two Heavens as One&#10;&#10;1 Sol Ring&#10;1 Skullclamp&#10;1 Hero of Bladehold&#10;..."></textarea>
+        <div class="input-actions">
+          <button id="analyze-btn" class="primary-btn">Analisar deck</button>
+          <button id="example-btn" class="ghost-btn">Carregar exemplo (Isshin Mardu)</button>
+        </div>
+      </div>
+      <div class="input-col about-col">
+        <h3>O que a análise mostra</h3>
+        <ul class="feature-list">
+          <li><b>Combos reais</b> detectados via <a href="https://commanderspellbook.com" target="_blank" rel="noopener">Commander Spellbook</a>, com as imagens das cartas envolvidas</li>
+          <li><b>Sinergias</b> entre pares de cartas do seu deck, com explicação de por que funcionam juntas</li>
+          <li><b>Sugestões</b>: cartas que faltam para completar combos + staples que casam com os temas do deck</li>
+          <li><b>Gráficos</b>: curva de mana, símbolos de mana, tipos de carta e saúde geral do deck</li>
+        </ul>
+        <p class="credits">Imagens e dados das cartas: <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PROGRESSO / ERROS ===================== -->
+  <section id="progress" class="panel progress hidden" aria-live="polite">
+    <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
+    <p id="progress-msg">Preparando…</p>
+  </section>
+  <section id="error-box" class="panel error-box hidden" aria-live="polite"></section>
+
+  <!-- ===================== RESULTADOS ===================== -->
+  <div id="results" class="hidden">
+
+    <section class="panel" id="overview-section">
+      <h2 class="section-title"><span class="section-num">1</span> Visão geral</h2>
+      <div id="commander-strip" class="commander-strip"></div>
+      <div id="stat-tiles" class="tile-row"></div>
+      <div id="health-tiles" class="tile-row"></div>
+    </section>
+
+    <section class="panel" id="charts-section">
+      <h2 class="section-title"><span class="section-num">2</span> Gráficos do deck</h2>
+      <div class="charts-grid">
+        <figure class="chart-card">
+          <figcaption>Curva de mana <span class="sub">(sem terrenos)</span></figcaption>
+          <div id="chart-curve" class="chart-host"></div>
+        </figure>
+        <figure class="chart-card">
+          <figcaption>Símbolos de mana nos custos</figcaption>
+          <div id="chart-pips" class="chart-host"></div>
+        </figure>
+        <figure class="chart-card">
+          <figcaption>Tipos de carta</figcaption>
+          <div id="chart-types" class="chart-host"></div>
+        </figure>
+        <figure class="chart-card">
+          <figcaption>Temas detectados <span class="sub">(nº de cartas por tema)</span></figcaption>
+          <div id="chart-themes" class="chart-host"></div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="panel" id="combos-section">
+      <h2 class="section-title"><span class="section-num">3</span> Combos no seu deck</h2>
+      <p class="section-desc">Combos confirmados pelo banco de dados do Commander Spellbook usando apenas cartas que já estão na lista.</p>
+      <div id="combos-list"></div>
+    </section>
+
+    <section class="panel" id="synergy-section">
+      <h2 class="section-title"><span class="section-num">4</span> Melhores sinergias</h2>
+      <p class="section-desc">Pares de cartas do seu deck que trabalham juntas, detectados por análise do texto das cartas.</p>
+      <div id="synergy-pairs"></div>
+      <h3 class="subsection-title">Cartas mais sinérgicas do deck</h3>
+      <div id="synergy-ranking"></div>
+    </section>
+
+    <section class="panel" id="suggestions-section">
+      <h2 class="section-title"><span class="section-num">5</span> Cartas para adicionar</h2>
+      <div id="combo-suggestions-block">
+        <h3 class="subsection-title">Complete um combo <span class="sub">— falta só 1 carta</span></h3>
+        <div id="combo-suggestions"></div>
+      </div>
+      <div id="theme-suggestions-block">
+        <h3 class="subsection-title">Staples para os temas do seu deck</h3>
+        <div id="theme-suggestions"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="deck-section">
+      <h2 class="section-title"><span class="section-num">6</span> Deck completo</h2>
+      <div id="deck-grid"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <p>Dados de cartas © <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall</a> · Combos © <a href="https://commanderspellbook.com" target="_blank" rel="noopener">Commander Spellbook</a> · Não afiliado à Wizards of the Coast.</p>
+</footer>
+
+<!-- preview flutuante da carta ao passar o mouse -->
+<div id="card-preview" class="card-preview hidden"><img alt=""></div>
+<!-- tooltip dos gráficos -->
+<div id="chart-tip" class="chart-tip hidden"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
